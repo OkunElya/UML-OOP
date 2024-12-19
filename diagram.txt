@@ -1,0 +1,123 @@
+@startuml
+' ==============================
+'         Enumerations
+' ==============================
+
+enum ConnectionType {
+    WiFi
+    Zigbee
+    Z-Wave
+    Bluetooth
+    Ethernet
+}
+
+enum PowerSource {
+    Battery
+    Mains
+    Solar
+    Other
+}
+
+' ==============================
+'            Classes
+' ==============================
+
+class MainNode {
+    + UI Server
+    + Data Logger
+    + Software : Home Assistant
+    + addDevice(device : SmartDevice)
+    + removeDevice(device : SmartDevice)
+    + addRoom(room : Room)
+    + removeRoom(room : Room)
+    + pairDevice(device : SmartDevice)
+    + unpairDevice(device : SmartDevice)
+}
+
+class Room {
+    + nameLabel : String
+    + miscStruct : String
+    + smartDevices : List<SmartDevice>
+    + addDevice(device : SmartDevice)
+    + removeDevice(device : SmartDevice)
+}
+
+class SmartDevice {
+    + connectionType : List<ConnectionType>
+    + poweredBy : List<PowerSource>
+    + handleEvent(event : Event)
+}
+
+class SmartLight
+class SmartThermostat
+class SmartCamera
+class SmartSpeaker
+class SmartPlug
+class SmartVacuum
+
+class HomeAssistant {
+    ' Methods and attributes can be defined as needed
+}
+
+class DataLogger {
+    ' Methods and attributes can be defined as needed
+}
+
+class PhoneApp {
+    + transmitCommand(command : Command)
+    + receiveFeedback(feedback : Feedback)
+}
+
+class Human {
+    + name : String
+    + phone : PhoneApp
+    + sendCommand(command : Command)
+}
+
+class Event {
+    Represents events triggered 
+    by smart devices 
+    (e.g., motion detected, door unlocked)
+}
+
+class Command {
+    Represents a command sent
+    from the Human via Middleware 
+    to the Main Node
+}
+
+class Feedback {
+     Represents feedback sent 
+     from the Main Node 
+     to the Human via Middleware
+}
+
+' ==============================
+'         Relationships
+' ==============================
+
+' MainNode Associations
+MainNode -- "*" Room : manages >
+MainNode -- "*" SmartDevice : manages >
+MainNode *-- HomeAssistant : includes >
+MainNode *-- DataLogger : includes >
+MainNode *-- PhoneApp : includes >
+
+' Room Composition
+Room *-- "*" SmartDevice : contains >
+
+' SmartDevice Inheritance
+SmartDevice <|-- SmartLight
+SmartDevice <|-- SmartThermostat
+SmartDevice <|-- SmartCamera
+SmartDevice <|-- SmartSpeaker
+SmartDevice <|-- SmartPlug
+SmartDevice <|-- SmartVacuum
+
+' SmartDevice to Event Association
+SmartDevice -- "*" Event : triggers >
+
+' Human and PhoneApp Association
+Human -- PhoneApp : uses >
+PhoneApp -- MainNode : communicates >
+@enduml
