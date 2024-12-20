@@ -81,16 +81,20 @@ class Event {
 }
 
 class Command {
-    Represents a command sent
+}
+note right of Command
+   Represents a command sent
     from the Human via Middleware 
     to the Main Node
-}
-
+end note
 class Feedback {
-     Represents feedback sent 
+   
+}
+note right of Feedback 
+   Represents feedback sent 
      from the Main Node 
      to the Human via Middleware
-}
+end note
 
 ' ==============================
 '         Relationships
