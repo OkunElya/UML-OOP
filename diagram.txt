@@ -120,4 +120,6 @@ SmartDevice -- "*" Event : triggers >
 ' Human and PhoneApp Association
 Human -- PhoneApp : uses >
 PhoneApp -- MainNode : communicates >
+PhoneApp  <-- Feedback : includes  >
+PhoneApp  <-- Command : includes  >
 @enduml
