@@ -105,7 +105,7 @@ MainNode -- "*" Room : manages >
 MainNode -- "*" SmartDevice : manages >
 MainNode *-- HomeAssistant : includes >
 MainNode *-- DataLogger : includes >
-MainNode *-- PhoneApp : includes >
+
 
 ' Room Composition
 Room *-- "*" SmartDevice : contains >
@@ -118,12 +118,19 @@ SmartDevice <|-- SmartSpeaker
 SmartDevice <|-- SmartPlug
 SmartDevice <|-- SmartVacuum
 
-' SmartDevice to Event Association
+' SmartDevice and MainNode to Event Association
 SmartDevice -- "*" Event : triggers >
+MainNode-- "*" Event : triggers >
+
+SmartDevice -- "*" Event : recieves <
+MainNode-- "*" Event : recieves <
+
 
 ' Human and PhoneApp Association
 Human -- PhoneApp : uses >
-PhoneApp -- MainNode : communicates >
-PhoneApp  <-- Feedback : includes  >
-PhoneApp  <-- Command : includes  >
+PhoneApp --u MainNode : communicates >
+PhoneApp  -u- Feedback : recieves >
+PhoneApp  -u- Command : sends >
+MainNode  -u- Feedback : sends <
+MainNode  -u- Command : recieves <
 @enduml
