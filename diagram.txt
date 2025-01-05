@@ -11,6 +11,11 @@ enum ConnectionType {
     Ethernet
 }
 
+enum EventType {
+  ExternalChagne
+  Configuration
+}
+
 enum PowerSource {
     Battery
     Mains
@@ -23,9 +28,12 @@ enum PowerSource {
 ' ==============================
 
 class MainNode {
-    + UI Server
-    + Data Logger
-    + Software : Home Assistant
+
+    
+    + handleEvent(event : Event)
+    # sendEvent(event : Event)
+    + pairedDevices : List<SmartDevice>
+    + roomList : List<Room>
     + addDevice(device : SmartDevice)
     + removeDevice(device : SmartDevice)
     + addRoom(room : Room)
@@ -36,7 +44,7 @@ class MainNode {
 
 class Room {
     + nameLabel : String
-    + miscStruct : String
+    + miscInfo : String
     + smartDevices : List<SmartDevice>
     + addDevice(device : SmartDevice)
     + removeDevice(device : SmartDevice)
@@ -45,6 +53,8 @@ class Room {
 class SmartDevice {
     + connectionType : List<ConnectionType>
     + poweredBy : List<PowerSource>
+    + isPairedTo :MainNode
+    # sendEvent(event : Event)
     + handleEvent(event : Event)
 }
 
@@ -55,30 +65,31 @@ class SmartSpeaker
 class SmartPlug
 class SmartVacuum
 
-class HomeAssistant {
-    ' Methods and attributes can be defined as needed
-}
-
-class DataLogger {
-    ' Methods and attributes can be defined as needed
-}
 
 class PhoneApp {
+    + user : Human
     + transmitCommand(command : Command)
-    + receiveFeedback(feedback : Feedback)
+    + recieveUpdates()
+    + notifyUser(feedback : Feedback)
 }
 
 class Human {
     + name : String
     + phone : PhoneApp
-    + sendCommand(command : Command)
+    + makeAction()
+    + acceptResponse(feedback : Feedback)
 }
 
+
 class Event {
-    Represents events triggered 
+  type : EventType
+  data : string
+}
+note bottom of Event
+  Represents events triggered 
     by smart devices 
     (e.g., motion detected, door unlocked)
-}
+end note
 
 class Command {
 }
@@ -103,12 +114,10 @@ end note
 ' MainNode Associations
 MainNode -- "*" Room : manages >
 MainNode -- "*" SmartDevice : manages >
-MainNode *-- HomeAssistant : includes >
-MainNode *-- DataLogger : includes >
 
 
 ' Room Composition
-Room *-- "*" SmartDevice : contains >
+Room o--  SmartDevice : contains >
 
 ' SmartDevice Inheritance
 SmartDevice <|-- SmartLight
