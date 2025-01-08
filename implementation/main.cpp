@@ -18,11 +18,22 @@ enum PowerSource
     Other
 };
 
+
+
 struct Event
-{ // event is passed back and forth between main node and devices
-    std::string name;
-    std::string description;
-    std::string data;
+{ // event is passed back and forth between main node and devices, every node should have 
+    long unsigned int timestamp;// time when event was sent in ms from epoch begining
+    long unsigned int deviceId; // this one is for separating eventTypeId for different devicec
+    long int eventTypeId;//event type is abstract number that specifies what does event do, every device has reserved
+    virtual int getIntParam(short unsigned int paramId){
+        //virtual func for getting parameter by specied id
+    }
+    virtual float getFloatParam(short unsigned int paramId){
+        //virtual func for getting parameter by specied id
+    }
+    virtual std::string getStringParam(short unsigned int paramId){
+        //virtual func for getting parameter by specied id
+    }
 };
 
 class Human;
@@ -38,7 +49,13 @@ public:
     }
     void removeDevice(SmartDevice device)
     {
-        this->pairedDevices.erase(device);
+        for(int i=0;i< this->pairedDevices.size();i++){
+            if(device.UUID==pairedDevices[i].UUID){
+                //found device to remove
+                this->pairedDevices.erase (this->pairedDevices.begin()+i);
+                break;
+            }
+        }
     }
     void addRoom(Room room)
     {
@@ -46,7 +63,13 @@ public:
     }
     void removeRoom(Room room)
     {
-        this->roomList.erase(room);
+        for(int i=0;i< this->roomList.size();i++){
+            if(room.UUID==roomList[i].UUID){
+                //found room to remove
+                this->roomList.erase (this->roomList.begin()+i);
+                break;
+            }
+        }
     }
     void pairDevice(SmartDevice device)
     {
@@ -72,6 +95,8 @@ class SmartDevice
     // base class for all smart devices
 public:
     std::string name;
+    unsigned int deviceId;
+    unsigned long  int UUID;
     ConnectionType connectionType;
     PowerSource poweredBy;
     mainNode *isPairedTo;
@@ -96,6 +121,7 @@ class Room
 public:
     std::string nameLabel;
     std::string miscInfo;
+    unsigned long  int UUID;
     std::vector<SmartDevice> smartDevices;
     void addDevice(SmartDevice device)
     {
