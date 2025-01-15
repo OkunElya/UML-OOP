@@ -11,11 +11,6 @@ enum ConnectionType {
     Ethernet
 }
 
-enum EventType {
-  ExternalChagne
-  Configuration
-}
-
 enum PowerSource {
     Battery
     Mains
@@ -23,39 +18,45 @@ enum PowerSource {
     Other
 }
 
+enum EventType {
+    DEVICE_EVENT
+    APP_EVENT
+}
+
+enum Direction {
+    TO_APP
+    FROM_APP
+}
+
 ' ==============================
 '            Classes
 ' ==============================
 
-class MainNode {
-
-    
+class MainNode { 
     + handleEvent(event : Event)
-    # sendEvent(event : Event)
+    + sendEventToDevice(deviceId : int, event : Event)
     + pairedDevices : List<SmartDevice>
+    + linkedApps : List<PhoneApp>
     + roomList : List<Room>
     + addDevice(device : SmartDevice)
     + removeDevice(device : SmartDevice)
     + addRoom(room : Room)
     + removeRoom(room : Room)
-    + pairDevice(device : SmartDevice)
-    + unpairDevice(device : SmartDevice)
 }
 
 class Room {
     + nameLabel : String
     + miscInfo : String
-    + smartDevices : List<SmartDevice>
+    + deviceList : List<SmartDevice>
     + addDevice(device : SmartDevice)
     + removeDevice(device : SmartDevice)
 }
 
-class SmartDevice {
+abstract class SmartDevice {
     + connectionType : List<ConnectionType>
     + poweredBy : List<PowerSource>
-    + isPairedTo :MainNode
-    # sendEvent(event : Event)
-    + handleEvent(event : Event)
+    + sendEvent(event : Event)
+    + {abstract} handleEvent(event : Event)
 }
 
 class SmartLight
@@ -65,47 +66,35 @@ class SmartSpeaker
 class SmartPlug
 class SmartVacuum
 
-
 class PhoneApp {
-    + user : Human
-    + transmitCommand(command : Command)
-    + recieveUpdates()
-    + notifyUser(feedback : Feedback)
+    + sendEvent(event : AppEvent)
+    + receiveEvent(event : AppEvent)
 }
 
 class Human {
     + name : String
     + phone : PhoneApp
     + makeAction()
-    + acceptResponse(feedback : Feedback)
+    + acceptResponse(event : AppEvent)
 }
 
+abstract class Event {
+    + type : EventType
+    + deviceId : int
+    + timestamp : long
+    + toJson() : String
+}
 
-class Event {
-  type : EventType
-  data : string
+class DeviceEvent {
+    - eventData : String
+    + toJson() : String
 }
-note bottom of Event
-  Represents events triggered 
-    by smart devices 
-    (e.g., motion detected, door unlocked)
-end note
 
-class Command {
+class AppEvent {
+    - data : String
+    - direction : Direction
+    + toJson() : String
 }
-note right of Command
-   Represents a command sent
-    from the Human via Middleware 
-    to the Main Node
-end note
-class Feedback {
-   
-}
-note right of Feedback 
-   Represents feedback sent 
-     from the Main Node 
-     to the Human via Middleware
-end note
 
 ' ==============================
 '         Relationships
@@ -114,10 +103,10 @@ end note
 ' MainNode Associations
 MainNode -- "*" Room : manages >
 MainNode -- "*" SmartDevice : manages >
-
+MainNode -- "*" PhoneApp : manages >
 
 ' Room Composition
-Room o--  SmartDevice : contains >
+Room o-- "*" SmartDevice : contains >
 
 ' SmartDevice Inheritance
 SmartDevice <|-- SmartLight
@@ -127,19 +116,18 @@ SmartDevice <|-- SmartSpeaker
 SmartDevice <|-- SmartPlug
 SmartDevice <|-- SmartVacuum
 
-' SmartDevice and MainNode to Event Association
-SmartDevice -- "*" Event : triggers >
-MainNode-- "*" Event : triggers >
-
-SmartDevice -- "*" Event : recieves <
-MainNode-- "*" Event : recieves <
-
+' Event Inheritance
+Event <|-- DeviceEvent
+Event <|-- AppEvent
 
 ' Human and PhoneApp Association
 Human -- PhoneApp : uses >
-PhoneApp --u MainNode : communicates >
-PhoneApp  -u- Feedback : recieves >
-PhoneApp  -u- Command : sends >
-MainNode  -u- Feedback : sends <
-MainNode  -u- Command : recieves <
+
+' Event Associations
+SmartDevice ..> DeviceEvent : sends >
+MainNode ..> Event : processes >
+PhoneApp ..> AppEvent : sends/receives >
+MainNode ..> AppEvent : sends/receives >
+SmartDevice ..> AppEvent : receives >
+
 @enduml
