@@ -30,7 +30,8 @@ enum class EventType
 enum class Direction
 {
     TO_APP,
-    FROM_APP
+    TO_DEVICE,
+    TO_NODE
 };
 
 // Forward declarations
@@ -46,63 +47,78 @@ protected:
     EventType type;
     int deviceId;
     long long timestamp;
+    std::string data;
+    Direction direction;
 
 public:
-    Event(EventType t, int id) : type(t), deviceId(id)
+    Event(EventType t, int id, std::string data) : type(t), deviceId(id)
     {
         timestamp = std::chrono::system_clock::now().time_since_epoch().count();
     }
-    virtual ~Event() = default;
+
+    Event() {}
+    Event(DeviceEvent &devE);
+    Event(AppEvent &devE);
 
     EventType getType() const { return type; }
     int getDeviceId() const { return deviceId; }
-    virtual std::string toJson() const
+    Direction getDirection() const { return direction; }
+    std::string getData() const { return data; }
+
+    std::string toJson() const
     {
-        return "{ type: " + std::to_string(static_cast<int>(type)) +
-               ", deviceId: " + std::to_string(deviceId) + " }";
+        return "{ type: APP_EVENT, deviceId: " + std::to_string(deviceId) +
+               ", direction: " + (direction == Direction::TO_APP ? "TO_APP" : "TO_DEVICE") +
+               ", data: " + data + " }";
     }
 };
 
 class DeviceEvent : public Event
 {
-    std::string eventData;
-
 public:
-    DeviceEvent(int deviceId, std::string data)
-        : Event(EventType::DEVICE_EVENT, deviceId), eventData(data)
+    DeviceEvent(Event &event)
     {
-        std::cout << "DeviceEvent created: " << toJson() << std::endl;
+        DeviceEvent(event.getDeviceId(), event.getData(), event.getDirection());
     }
-
-    std::string toJson() const override
+    DeviceEvent(int deviceId, std::string data, Direction dir)
+        : Event(EventType::DEVICE_EVENT, deviceId, data)
     {
-        return "{ type: DEVICE_EVENT, deviceId: " + std::to_string(deviceId) +
-               ", data: " + eventData + " }";
+        type = EventType::DEVICE_EVENT;
+        std::cout << "DeviceEvent created: " << toJson() << std::endl;
     }
 };
 
 class AppEvent : public Event
 {
-    std::string data;
-    Direction direction;
-
 public:
-    AppEvent(int deviceId, std::string d, Direction dir)
-        : Event(EventType::APP_EVENT, deviceId), data(d), direction(dir)
+    AppEvent(Event &event)
     {
+        AppEvent(event.getDeviceId(), event.getData(), event.getDirection());
+    }
+    AppEvent(int deviceId, std::string data, Direction dir)
+        : Event(EventType::DEVICE_EVENT, deviceId, data)
+    {
+        type = EventType::APP_EVENT;
         std::cout << "AppEvent created: " << toJson() << std::endl;
     }
-
-    Direction getDirection() const { return direction; }
-    std::string getData() const { return data; }
-
-    std::string toJson() const override
-    {
-        return "{ type: APP_EVENT, deviceId: " + std::to_string(deviceId) +
-               ", direction: " + (direction == Direction::TO_APP ? "TO_APP" : "FROM_APP") +
-               ", data: " + data + " }";
-    }
 };
+
+Event::Event(DeviceEvent &devE)
+{
+    timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+    type = EventType::DEVICE_EVENT;
+    data = devE.getData();
+    deviceId = devE.getDeviceId();
+    direction = devE.getDirection();
+}
+Event::Event(AppEvent &devE)
+{
+    timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+    type = EventType::DEVICE_EVENT;
+    data = devE.getData();
+    deviceId = devE.getDeviceId();
+    direction = devE.getDirection();
+}
 
 // Base calss for smart devices
 class SmartDevice
@@ -126,8 +142,8 @@ public:
     int getId() const { return deviceId; }
     std::string getName() const { return name; }
 
-    virtual void handleEvent(const Event &event) = 0;
-    void sendEvent(const Event &event); // Implementation after MainNode definition
+    virtual void handleEvent(const DeviceEvent &event) = 0;
+    void sendEvent(const DeviceEvent &event); // Implementation after MainNode definition
 };
 
 class SmartLight : public SmartDevice
@@ -142,21 +158,18 @@ public:
         powerSources = {PowerSource::Mains};
     }
 
-    void handleEvent(const Event &event) override
+    void handleEvent(const DeviceEvent &event) override
     {
-        if (event.getType() == EventType::APP_EVENT)
-        {
-            const AppEvent &appEvent = static_cast<const AppEvent &>(event);
-            if (appEvent.getData() == "TOGGLE")
-            {
-                isOn = !isOn;
-                std::cout << "Light " << name << " turned " << (isOn ? "ON" : "OFF") << std::endl;
 
-                // Send feedback
-                sendEvent(AppEvent(deviceId,
-                                   "Light state changed to " + std::string(isOn ? "ON" : "OFF"),
-                                   Direction::TO_APP));
-            }
+        if (event.getData() == "TOGGLE")
+        {
+            isOn = !isOn;
+            std::cout << "Light " << name << " turned " << (isOn ? "ON" : "OFF") << std::endl;
+
+            // Send feedback
+            sendEvent(DeviceEvent(deviceId,
+                                  "Light state changed to " + std::string(isOn ? "ON" : "OFF"),
+                                  Direction::TO_APP));
         }
     }
 };
@@ -174,21 +187,18 @@ public:
         powerSources = {PowerSource::Mains};
     }
 
-    void handleEvent(const Event &event) override
+    void handleEvent(const DeviceEvent &event) override
     {
-        if (event.getType() == EventType::APP_EVENT)
-        {
-            const AppEvent &appEvent = static_cast<const AppEvent &>(event);
-            if (appEvent.getData().find("SET_TEMP:") == 0)
-            {
-                targetTemp = std::stof(appEvent.getData().substr(9));
-                std::cout << "Thermostat " << name << " target temperature set to "
-                          << targetTemp << "C" << std::endl;
 
-                sendEvent(AppEvent(deviceId,
-                                   "Target temperature set to " + std::to_string(targetTemp),
-                                   Direction::TO_APP));
-            }
+        if (event.getData().find("SET_TEMP:") == 0)
+        {
+            targetTemp = std::stof(event.getData().substr(9));
+            std::cout << "Thermostat " << name << " target temperature set to "
+                      << targetTemp << "C" << std::endl;
+
+            sendEvent(DeviceEvent(deviceId,
+                                  "Target temperature set to " + std::to_string(targetTemp),
+                                  Direction::TO_APP));
         }
     }
 
@@ -196,7 +206,7 @@ public:
     {
         temperature = newTemp;
         std::cout << "Temperature changed to " << temperature << "°C" << std::endl;
-        sendEvent(DeviceEvent(deviceId, "Temperature: " + std::to_string(temperature)));
+        sendEvent(DeviceEvent(deviceId, "Temperature: " + std::to_string(temperature), Direction::TO_NODE));
     }
 };
 
@@ -212,28 +222,24 @@ public:
         powerSources = {PowerSource::Mains};
     }
 
-    void handleEvent(const Event &event) override
+    void handleEvent(const DeviceEvent &event) override
     {
-        if (event.getType() == EventType::APP_EVENT)
+        if (event.getData() == "TOGGLE_RECORDING")
         {
-            const AppEvent &appEvent = static_cast<const AppEvent &>(event);
-            if (appEvent.getData() == "TOGGLE_RECORDING")
-            {
-                isRecording = !isRecording;
-                std::cout << "Camera " << name << " recording "
-                          << (isRecording ? "started" : "stopped") << std::endl;
+            isRecording = !isRecording;
+            std::cout << "Camera " << name << " recording "
+                      << (isRecording ? "started" : "stopped") << std::endl;
 
-                sendEvent(AppEvent(deviceId,
-                                   "Recording " + std::string(isRecording ? "started" : "stopped"),
-                                   Direction::TO_APP));
-            }
+            sendEvent(DeviceEvent(deviceId,
+                                  "Recording " + std::string(isRecording ? "started" : "stopped"),
+                                  Direction::TO_NODE));
         }
     }
 
     void detectMotion()
     {
         std::cout << "Motion detected by camera " << name << std::endl;
-        sendEvent(DeviceEvent(deviceId, "Motion detected"));
+        sendEvent(DeviceEvent(deviceId, "Motion detected", Direction::TO_NODE));
     }
 };
 
@@ -304,7 +310,7 @@ public:
     void makeAction(int deviceId, const std::string &action)
     {
         std::cout << name << " initiating action: " << action << " for device " << deviceId << std::endl;
-        phone->sendEvent(AppEvent(deviceId, action, Direction::FROM_APP));
+        phone->sendEvent(AppEvent(deviceId, action, Direction::TO_DEVICE));
     }
 
     const void acceptResponse(const AppEvent &event)
@@ -346,22 +352,21 @@ public:
         roomList.emplace_back(std::move(room));
     }
 
-    void handleEvent(const Event &event)
+    void handleEvent(Event *event)
     {
-        std::cout << "MainNode: Processing event: " << event.toJson() << std::endl;
-
-        if (event.getType() == EventType::APP_EVENT)
+        if (event->getType() == EventType::APP_EVENT)
         {
-            const AppEvent &appEvent = static_cast<const AppEvent &>(event);
-
-            if (appEvent.getDirection() == Direction::FROM_APP)
+            std::cout << "MainNode: Processing event: " << event->toJson() << std::endl;
+            if (event->getDirection() == Direction::TO_DEVICE)
             {
                 // Forward to device
                 for (const auto &device : pairedDevices)
                 {
-                    if (device->getId() == event.getDeviceId())
+                    if (device->getId() == event->getDeviceId())
                     {
-                        device->handleEvent(event);
+                        
+                        DeviceEvent devEvent = DeviceEvent(*event);
+                        device->handleEvent(devEvent);
                         break;
                     }
                 }
@@ -369,110 +374,103 @@ public:
             else
             {
                 // Forward to apps
-                for (auto app : linkedApps)
-                {
-                    app->receiveEvent(appEvent);
-                }
+                std::cout<<"Node recieves event "<<event->toJson();
             }
         }
-        else if (event.getType() == EventType::DEVICE_EVENT)
+        else
         {
-            // Forward device events to apps
-            AppEvent appEvent(event.getDeviceId(),
-                              static_cast<const DeviceEvent &>(event).toJson(),
-                              Direction::TO_APP);
             for (auto app : linkedApps)
             {
-                app->receiveEvent(appEvent);
+                app->receiveEvent(AppEvent(*event));
             }
         }
     }
-};
-
-void PhoneApp::sendEvent(const AppEvent &event)
-{
-    std::cout << "PhoneApp " << appId << " sending event: " << event.toJson() << std::endl;
-    if (mainNode)
-        mainNode->handleEvent(event);
 }
 
-// Imblemented later bacuse mainNode wasn't defined yet
-void SmartDevice::sendEvent(const Event &event)
-{
-    std::cout << "Device " << name << " sending event: " << event.toJson() << std::endl;
-    if (mainNode)
-        mainNode->handleEvent(event);
-}
-int main()
-{
-    std::cout << "\n=== Initializing Smart Home System ===\n"
-              << std::endl;
-
-    // Create main node
-    MainNode mainNode;
-
-    // Create rooms
-    auto livingRoom = new Room("Living Room");
-    auto bedroom = new Room("Bedroom");
-
-    auto *lightPtr = new SmartLight(1, "Living Room Light");
-    auto *thermostatPtr = new SmartThermostat(2, "Home Thermostat");
-    auto *cameraPtr = new SmartCamera(3, "Security Camera");
-    // add devices to the main node
-    mainNode.addDevice(lightPtr);
-    mainNode.addDevice(thermostatPtr);
-    mainNode.addDevice(cameraPtr);
-    // Create phone app and human, link app to the node
-    PhoneApp app(1);
-    Human user("Aboba", &app);
-    mainNode.linkApp(&app);
-
-    // Add devices to rooms
-    livingRoom->addDevice(lightPtr);
-    livingRoom->addDevice(cameraPtr);
-    bedroom->addDevice(thermostatPtr);
-
-    // Add rooms to main node
-    mainNode.addRoom(livingRoom);
-    mainNode.addRoom(bedroom);
-
-    std::cout << "\n=== Starting User Interactions ===\n"
-              << std::endl;
-
-    // Example interactions
-    std::cout << "\n--- Light Control Test ---\n";
-    user.makeAction(1, "TOGGLE"); // Turn on the light
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    user.makeAction(1, "TOGGLE"); // Turn off the light
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    std::cout << "\n--- Thermostat Test ---\n";
-    user.makeAction(2, "SET_TEMP:24.5"); // Set thermostat
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    std::cout << "\n--- Camera Test ---\n";
-    user.makeAction(3, "TOGGLE_RECORDING"); // Start camera recording
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    std::cout << "\n=== System Running ===\n"
-              << std::endl;
-
-    // Simulate some automated events
-    for (int i = 0; i < 3; i++)
+    void PhoneApp::sendEvent(const AppEvent &event)
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-
-        // Simulate temperature fluctuation
-        thermostatPtr->simulateTemperatureChange(22.0 + (float)(rand() % 4));
-
-        if (i % 2 == 0)
-        {
-            // Simulate motion detection
-            cameraPtr->detectMotion();
-        }
+        std::cout << "PhoneApp " << appId << " sending event: " << event.toJson() << std::endl;
+        if (mainNode)
+            mainNode->handleEvent(event);
     }
 
-    std::cout << "\n=== End of Simulation ===\n"
-              << std::endl;
-    return 0;
-}
+    // Imblemented later bacuse mainNode wasn't defined yet
+    void SmartDevice::sendEvent(const DeviceEvent &event)
+    {
+        std::cout << "Device " << name << " sending event: " << event.toJson() << std::endl;
+        if (mainNode)
+            mainNode->handleEvent(event);
+    }
+    int main()
+    {
+        std::cout << "\n=== Initializing Smart Home System ===\n"
+                  << std::endl;
+
+        // Create main node
+        MainNode mainNode;
+
+        // Create rooms
+        auto livingRoom = new Room("Living Room");
+        auto bedroom = new Room("Bedroom");
+
+        auto *lightPtr = new SmartLight(1, "Living Room Light");
+        auto *thermostatPtr = new SmartThermostat(2, "Home Thermostat");
+        auto *cameraPtr = new SmartCamera(3, "Security Camera");
+        // add devices to the main node
+        mainNode.addDevice(lightPtr);
+        mainNode.addDevice(thermostatPtr);
+        mainNode.addDevice(cameraPtr);
+        // Create phone app and human, link app to the node
+        PhoneApp app(1);
+        Human user("Aboba", &app);
+        mainNode.linkApp(&app);
+
+        // Add devices to rooms
+        livingRoom->addDevice(lightPtr);
+        livingRoom->addDevice(cameraPtr);
+        bedroom->addDevice(thermostatPtr);
+
+        // Add rooms to main node
+        mainNode.addRoom(livingRoom);
+        mainNode.addRoom(bedroom);
+
+        std::cout << "\n=== Starting User Interactions ===\n"
+                  << std::endl;
+
+        // Example interactions
+        std::cout << "\n--- Light Control Test ---\n";
+        user.makeAction(1, "TOGGLE"); // Turn on the light
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        user.makeAction(1, "TOGGLE"); // Turn off the light
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        std::cout << "\n--- Thermostat Test ---\n";
+        user.makeAction(2, "SET_TEMP:24.5"); // Set thermostat
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        std::cout << "\n--- Camera Test ---\n";
+        user.makeAction(3, "TOGGLE_RECORDING"); // Start camera recording
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        std::cout << "\n=== System Running ===\n"
+                  << std::endl;
+
+        // Simulate some automated events
+        for (int i = 0; i < 3; i++)
+        {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+
+            // Simulate temperature fluctuation
+            thermostatPtr->simulateTemperatureChange(22.0 + (float)(rand() % 4));
+
+            if (i % 2 == 0)
+            {
+                // Simulate motion detection
+                cameraPtr->detectMotion();
+            }
+        }
+
+        std::cout << "\n=== End of Simulation ===\n"
+                  << std::endl;
+        return 0;
+    }
